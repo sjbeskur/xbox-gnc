@@ -4,9 +4,15 @@ use std::io::{Read};
 
 #[allow(dead_code)]
 
+
+type ButtonCallback = fn();
+
 #[derive(Debug,  Clone)]
 pub struct GamePad {
     dev_input: String,
+
+    callback: Option<ButtonCallback>,
+
 }
 
 pub struct Axis{
@@ -17,9 +23,15 @@ pub struct Axis{
 impl GamePad {
     pub fn new(device_path: &str) -> GamePad {
         Self { 
-            dev_input: String::from(device_path)
+            dev_input: String::from(device_path),
+            callback: None,
         }
     }
+
+    pub fn set_callback(&mut self, callback: ButtonCallback) {
+        self.callback = Some(callback);
+    }
+
 
     pub fn read_device(&self) -> Result<(), Box<dyn std::error::Error>> {
         const BUFFER_SIZE: usize = 8;
@@ -53,7 +65,10 @@ impl GamePad {
 
         // IsButton - 0x01 in byte 6 means it is a Button
         if GamePad::is_flag_set(message[6], 0x01) {
-            println!("this is a Button Event");                
+            if self.callback.is_some() {
+                println!("this is a Button Event");                
+                self.callback.unwrap()();
+            }
         }
 
         println!("address: {}, count: {}, buffer: {:?}", address, message.len(), message);        
