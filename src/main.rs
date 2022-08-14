@@ -1,9 +1,9 @@
 mod xbox;
 
 fn main() {
-    println!("Hello, world!");
     let mut gp = xbox::GamePad::new("/dev/input/js0");
-    gp.set_callback(simple_callback);
+    gp.button_handler(button_event);
+    gp.axis_handler(axis_event);
 
     println!("gp: {:?}", gp);
 
@@ -13,8 +13,10 @@ fn main() {
 }
 
 
+fn button_event(id: u8){
+    println!("button id: {:?}", id);
+}
 
-
-fn simple_callback(){
-    println!("Hello, world!");
+fn axis_event(id: u8, x: i16, y: i16){
+    println!("axis id: {:?} - (x,y) {:?} , {:?}", id, x, y);
 }

@@ -5,13 +5,15 @@ use std::io::{Read};
 #[allow(dead_code)]
 
 
-type ButtonCallback = fn();
+type ButtonCallback = fn(id: u8);
+type AxisChangedCallback = fn(id: u8, x: i16, y: i16);
 
 #[derive(Debug,  Clone)]
 pub struct GamePad {
     dev_input: String,
 
-    callback: Option<ButtonCallback>,
+    button_handler: Option<ButtonCallback>,
+    axis_handler: Option<AxisChangedCallback>,
 
 }
 
@@ -24,12 +26,17 @@ impl GamePad {
     pub fn new(device_path: &str) -> GamePad {
         Self { 
             dev_input: String::from(device_path),
-            callback: None,
+            button_handler: None,
+            axis_handler: None,
         }
     }
 
-    pub fn set_callback(&mut self, callback: ButtonCallback) {
-        self.callback = Some(callback);
+    pub fn button_handler(&mut self, callback: ButtonCallback) {
+        self.button_handler = Some(callback);
+    }
+
+    pub fn axis_handler(&mut self, callback: AxisChangedCallback) {
+        self.axis_handler = Some(callback);
     }
 
 
@@ -65,9 +72,8 @@ impl GamePad {
 
         // IsButton - 0x01 in byte 6 means it is a Button
         if GamePad::is_flag_set(message[6], 0x01) {
-            if self.callback.is_some() {
-                println!("this is a Button Event");                
-                self.callback.unwrap()();
+            if self.button_handler.is_some() {
+                self.button_handler.unwrap()(address);
             }
         }
 
@@ -88,6 +94,10 @@ impl GamePad {
             if address == 1 {  // Y1
                 //println!("X1: {:?} size: {}", axis_values.read_u16::<LittleEndian>().unwrap(), axis_values.len());
                 l_axis.y = -i16::from_le_bytes(axis_values);
+            }
+            
+            if self.axis_handler.is_some() {
+                self.axis_handler.unwrap()(address, l_axis.x, l_axis.y);
             }
 
             if address == 2 {  // Y1
