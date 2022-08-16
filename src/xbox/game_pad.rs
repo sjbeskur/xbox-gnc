@@ -1,9 +1,8 @@
+#[allow(dead_code, unused_variables)]
+
 use std::fs::File;
 use std::io::{Read};
 //use byteorder::{LittleEndian, ReadBytesExt};
-
-#[allow(dead_code)]
-
 
 type ButtonCallback = fn(id: u8);
 type AxisChangedCallback = fn(Axis, Axis);
@@ -18,9 +17,24 @@ pub struct GamePad {
 }
 #[derive(Debug, Clone)]
 pub struct Axis{
-    pub pad: char,
+    pub pad: ControllerInputs,
     pub x: i16,
     pub y: i16,
+}
+
+#[derive(Debug, Clone)]
+pub enum ControllerInputs{
+    LeftStick,
+    RightStick,
+    XButton,
+    YButton,
+    AButton,
+    BButton,
+    LTrigger,
+    RTrigger,
+    LBumber,
+    RBumber,
+    DPad,
 }
 
 impl GamePad {
@@ -46,8 +60,8 @@ impl GamePad {
         let mut buffer = [0u8; BUFFER_SIZE];        
         let mut file = File::open(self.dev_input.clone())?;
 
-        let mut raxis = Axis{pad: 'r', x:0, y:0};
-        let mut laxis = Axis{pad: 'l', x:0, y:0};
+        let mut raxis = Axis{pad: ControllerInputs::RightStick, x:0, y:0};
+        let mut laxis = Axis{pad: ControllerInputs::LeftStick, x:0, y:0};
 
         loop {
 
@@ -76,7 +90,7 @@ impl GamePad {
             }
         }
 
-        println!("address: {}, count: {}, buffer: {:?}", address, message.len(), message);        
+        // println!("address: {}, count: {}, buffer: {:?}", address, message.len(), message);        
 
 
         // IsAxis - 0x01 in byte 6 means it is a Axis
@@ -95,7 +109,7 @@ impl GamePad {
             if address == 3 { r_axis.y = -i16::from_le_bytes(axis_values); }
 
             if self.axis_handler.is_some() {
-                self.axis_handler.unwrap()(l_axis.clone(),r_axis.clone());
+                self.axis_handler.unwrap()(l_axis.clone(), r_axis.clone());
             }
 
         }

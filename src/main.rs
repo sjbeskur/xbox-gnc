@@ -16,5 +16,5 @@ fn button_event(id: u8){
 }
 
 fn axis_event(laxis: xbox::Axis, raxis: xbox::Axis ){
-    println!("{}: {{ X1 {}: Y1: {} }}  {}: {{ X2 {}: Y2: {} }} ", laxis.pad, laxis.x, laxis.y, raxis.pad, raxis.x, raxis.y );
+    println!("LeftStick: {{ X1 {}: Y1: {} }}  RightStick: {{ X2 {}: Y2: {} }} ",  laxis.x, laxis.y,  raxis.x, raxis.y );
 }
