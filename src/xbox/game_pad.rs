@@ -6,7 +6,7 @@ use std::io::{Read};
 
 
 type ButtonCallback = fn(id: u8);
-type AxisChangedCallback = fn(id: u8, x: i16, y: i16);
+type AxisChangedCallback = fn(Axis, Axis);
 
 #[derive(Debug,  Clone)]
 pub struct GamePad {
@@ -16,10 +16,11 @@ pub struct GamePad {
     axis_handler: Option<AxisChangedCallback>,
 
 }
-
+#[derive(Debug, Clone)]
 pub struct Axis{
-    x: i16,
-    y: i16,
+    pub pad: char,
+    pub x: i16,
+    pub y: i16,
 }
 
 impl GamePad {
@@ -45,16 +46,14 @@ impl GamePad {
         let mut buffer = [0u8; BUFFER_SIZE];        
         let mut file = File::open(self.dev_input.clone())?;
 
-        let mut raxis = Axis{x:0, y:0};
-        let mut laxis = Axis{x:0, y:0};
+        let mut raxis = Axis{pad: 'r', x:0, y:0};
+        let mut laxis = Axis{pad: 'l', x:0, y:0};
+
         loop {
 
             let count = file.read(&mut buffer)?;
             // do something with
             self.process(buffer, &mut laxis, &mut raxis);
-
-            println!("X1 {}: Y1: {}  X2 {}: Y2: {} ", laxis.x, laxis.y, raxis.x, raxis.y );
-
             if count != 8 { break; }            
         }
         Ok(())
@@ -86,29 +85,18 @@ impl GamePad {
             //let mut axis_values = &message[3..5];
             let axis_values: [u8;2] = [ message[4], message[5] ];
             
-            //let mut axis_value = (message[4] as u16) << 8 | message[5] as u16;
-            if address == 0 {  // Y1
-                //println!("X1: {:?} size: {}", axis_values.read_u16::<LittleEndian>().unwrap(), axis_values.len());
-                l_axis.x = i16::from_le_bytes(axis_values);
-            }
-            if address == 1 {  // Y1
-                //println!("X1: {:?} size: {}", axis_values.read_u16::<LittleEndian>().unwrap(), axis_values.len());
-                l_axis.y = -i16::from_le_bytes(axis_values);
-            }
-            
+            // Left AxisChanged
+            if address == 0 { l_axis.x = i16::from_le_bytes(axis_values); }
+            if address == 1 { l_axis.y = -i16::from_le_bytes(axis_values); }            
+            // println!("this is a Axis Event");        
+
+            // Right AxisChanged
+            if address == 2 { r_axis.x = i16::from_le_bytes(axis_values);  }
+            if address == 3 { r_axis.y = -i16::from_le_bytes(axis_values); }
+
             if self.axis_handler.is_some() {
-                self.axis_handler.unwrap()(address, l_axis.x, l_axis.y);
+                self.axis_handler.unwrap()(l_axis.clone(),r_axis.clone());
             }
-
-            if address == 2 {  // Y1
-                //println!("X1: {:?} size: {}", axis_values.read_u16::<LittleEndian>().unwrap(), axis_values.len());
-                r_axis.x = i16::from_le_bytes(axis_values);
-            }
-            if address == 3 {  // Y1
-                //println!("X1: {:?} size: {}", axis_values.read_u16::<LittleEndian>().unwrap(), axis_values.len());
-                r_axis.y = -i16::from_le_bytes(axis_values);
-            }
-
 
         }
         

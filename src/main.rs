@@ -9,14 +9,12 @@ fn main() {
 
     let rst = gp.read_device();
     println!("rst: {:?}", rst);
-
 }
-
 
 fn button_event(id: u8){
     println!("button id: {:?}", id);
 }
 
-fn axis_event(id: u8, x: i16, y: i16){
-    println!("axis id: {:?} - (x,y) {:?} , {:?}", id, x, y);
+fn axis_event(laxis: xbox::Axis, raxis: xbox::Axis ){
+    println!("{}: {{ X1 {}: Y1: {} }}  {}: {{ X2 {}: Y2: {} }} ", laxis.pad, laxis.x, laxis.y, raxis.pad, raxis.x, raxis.y );
 }
