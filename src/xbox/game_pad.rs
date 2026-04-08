@@ -1,45 +1,26 @@
-#[allow(dead_code, unused_variables)]
-
 use std::fs::File;
-use std::io::{Read};
-//use byteorder::{LittleEndian, ReadBytesExt};
+use std::io::Read;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
-type ButtonCallback = fn(id: u8);
-type AxisChangedCallback = fn(Axis, Axis);
+use super::error::GamePadError;
+use super::types::{Axis, ControllerInputs};
 
-#[derive(Debug,  Clone)]
+type ButtonCallback = fn(ControllerInputs);
+type AxisChangedCallback = fn(Axis);
+
+#[derive(Debug, Clone)]
 pub struct GamePad {
     dev_input: String,
-
     button_handler: Option<ButtonCallback>,
     axis_handler: Option<AxisChangedCallback>,
-
-}
-#[derive(Debug, Clone)]
-pub struct Axis{
-    pub pad: ControllerInputs,
-    pub x: i16,
-    pub y: i16,
-}
-
-#[derive(Debug, Clone)]
-pub enum ControllerInputs{
-    LeftStick,
-    RightStick,
-    XButton,
-    YButton,
-    AButton,
-    BButton,
-    LTrigger,
-    RTrigger,
-    LBumber,
-    RBumber,
-    DPad,
 }
 
 impl GamePad {
     pub fn new(device_path: &str) -> GamePad {
-        Self { 
+        Self {
             dev_input: String::from(device_path),
             button_handler: None,
             axis_handler: None,
@@ -54,79 +35,115 @@ impl GamePad {
         self.axis_handler = Some(callback);
     }
 
-
-    pub fn read_device(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn read_device(&self, stop: Arc<AtomicBool>) -> Result<(), GamePadError> {
         const BUFFER_SIZE: usize = 8;
-        let mut buffer = [0u8; BUFFER_SIZE];        
-        let mut file = File::open(self.dev_input.clone())?;
+        let mut buffer = [0u8; BUFFER_SIZE];
+        let mut file = File::open(self.dev_input.clone()).map_err(GamePadError::DeviceOpen)?;
 
-        let mut raxis = Axis{pad: ControllerInputs::RightStick, x:0, y:0};
-        let mut laxis = Axis{pad: ControllerInputs::LeftStick, x:0, y:0};
+        let mut raxis = Axis {
+            pad: ControllerInputs::RightStick,
+            x: 0,
+            y: 0,
+        };
+        let mut laxis = Axis {
+            pad: ControllerInputs::LeftStick,
+            x: 0,
+            y: 0,
+        };
 
         loop {
-
-            let count = file.read(&mut buffer)?;
-            // do something with
+            if stop.load(Ordering::Relaxed) {
+                break;
+            }
+            let count = file.read(&mut buffer).map_err(GamePadError::Read)?;
             self.process(buffer, &mut laxis, &mut raxis);
-            if count != 8 { break; }            
+            if count != 8 {
+                break;
+            }
         }
         Ok(())
     }
 
-    pub fn process(&self, message: [u8;8], l_axis: &mut Axis, r_axis: &mut Axis){
+    fn process(&self, message: [u8; 8], l_axis: &mut Axis, r_axis: &mut Axis) {
+        // ButtonAddress - address is in byte 7
+        let address = message[7];
 
-        // ButtonAddress -  address is in byte 7
-        let address = message[7]; 
-
-        // HasConfiguration - 0x80 in byte 6 means it has Configuration information
-        if GamePad::is_flag_set(message[6], 0x80){
-            println!("has a configuration");                
+        // HasConfiguration - 0x80 in byte 6 means it has configuration information
+        if GamePad::is_flag_set(message[6], 0x80) {
+            println!("has a configuration");
         }
 
-        // IsButton - 0x01 in byte 6 means it is a Button
+        // IsButton - 0x01 in byte 6 means it is a button
         if GamePad::is_flag_set(message[6], 0x01) {
-            if self.button_handler.is_some() {
-                self.button_handler.unwrap()(address);
+            if let (Some(cb), Some(input)) = (self.button_handler, GamePad::button_from_id(address))
+            {
+                cb(input);
+            }
+            // IsButtonPressed - byte 4: 0x01 = pressed, 0x00 = released
+            if message[4] == 0x01 {
+                println!("pressed or released");
             }
         }
 
-        // println!("address: {}, count: {}, buffer: {:?}", address, message.len(), message);        
+        // IsAxis - 0x02 in byte 6 means it is an axis event
+        if GamePad::is_flag_set(message[6], 0x02) {
+            let value = i16::from_le_bytes([message[4], message[5]]);
 
+            let changed = match address {
+                0 => {
+                    l_axis.pad = ControllerInputs::LeftStick;
+                    l_axis.x = value;
+                    Some(l_axis.clone())
+                }
+                1 => {
+                    l_axis.pad = ControllerInputs::LeftStick;
+                    l_axis.y = -value;
+                    Some(l_axis.clone())
+                }
+                2 => {
+                    r_axis.pad = ControllerInputs::RightStick;
+                    r_axis.x = value;
+                    Some(r_axis.clone())
+                }
+                3 => {
+                    r_axis.pad = ControllerInputs::RightStick;
+                    r_axis.y = -value;
+                    Some(r_axis.clone())
+                }
+                6 => Some(Axis {
+                    pad: ControllerInputs::DPad,
+                    x: value,
+                    y: 0,
+                }),
+                7 => Some(Axis {
+                    pad: ControllerInputs::DPad,
+                    x: 0,
+                    y: -value,
+                }),
+                _ => None,
+            };
 
-        // IsAxis - 0x01 in byte 6 means it is a Axis
-        if GamePad::is_flag_set(message[6], 0x02){
-            //println!("this is a Axis Event");                
-            //let mut axis_values = &message[3..5];
-            let axis_values: [u8;2] = [ message[4], message[5] ];
-            
-            // Left AxisChanged
-            if address == 0 { l_axis.x = i16::from_le_bytes(axis_values); }
-            if address == 1 { l_axis.y = -i16::from_le_bytes(axis_values); }            
-            // println!("this is a Axis Event");        
-
-            // Right AxisChanged
-            if address == 2 { r_axis.x = i16::from_le_bytes(axis_values);  }
-            if address == 3 { r_axis.y = -i16::from_le_bytes(axis_values); }
-
-            if self.axis_handler.is_some() {
-                self.axis_handler.unwrap()(l_axis.clone(), r_axis.clone());
+            if let (Some(cb), Some(axis)) = (self.axis_handler, changed) {
+                cb(axis);
             }
-
         }
-        
-        // IsButtonPressed - byte 4 contains the status (0x01 means pressed, 0x00 means released)
-        if message[4] == 0x01 {
-            println!("pressed or released");                
-        }
-                
-        // AxisValue (value)
-
     }
 
+    fn button_from_id(id: u8) -> Option<ControllerInputs> {
+        match id {
+            0 => Some(ControllerInputs::AButton),
+            1 => Some(ControllerInputs::BButton),
+            2 => Some(ControllerInputs::XButton),
+            3 => Some(ControllerInputs::YButton),
+            4 => Some(ControllerInputs::LBumper),
+            5 => Some(ControllerInputs::RBumper),
+            6 => Some(ControllerInputs::LTrigger),
+            7 => Some(ControllerInputs::RTrigger),
+            _ => None,
+        }
+    }
 
     fn is_flag_set(value: u8, flag: u8) -> bool {
-        return value & flag == flag;
+        value & flag == flag
     }
-
-
 }
