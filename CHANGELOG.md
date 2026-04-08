@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] - 2026-04-07
+## [0.1.2] - 2026-04-07
 
 ### Added
 - `GamePadError` enum with `DeviceOpen` and `Read` variants replacing `Box<dyn std::error::Error>`

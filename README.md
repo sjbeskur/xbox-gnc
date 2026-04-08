@@ -6,13 +6,8 @@ A Rust library for reading Xbox 360 controller input on Linux via the joystick d
 
 - Linux (Ubuntu)
 - Rust / Cargo
-- `xboxdrv` — userspace Xbox 360 driver
 
-### Install xboxdrv
-
-```bash
-sudo apt install xboxdrv
-```
+The `xpad` kernel module is built into Linux and loads automatically when an Xbox 360 controller is plugged in — no driver install required.
 
 ## Build
 
@@ -22,9 +17,9 @@ cargo build
 
 ## Run
 
-1. Start the driver (connect your controller first):
+1. Plug in your controller, then verify the device is present:
    ```bash
-   sudo xboxdrv
+   ls /dev/input/js*
    ```
 
 2. Run the basic example:
@@ -34,7 +29,15 @@ cargo build
 
 3. Press **Enter** to stop.
 
+## Troubleshooting
+
+If `/dev/input/js0` doesn't appear, your controller may not be supported by the `xpad` kernel module (common with third-party clones). In that case, try the userspace driver:
+
+```bash
+sudo apt install xboxdrv
+sudo xboxdrv
+```
+
 ## Resources
 
-- https://xboxdrv.gitlab.io/
 - https://support.xbox.com/en-US/help/xbox-360/accessories/controllers
