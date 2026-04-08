@@ -27,8 +27,8 @@ fn main() {
     handle.join().unwrap();
 }
 
-fn button_event(input: ControllerInputs) {
-    println!("button: {:?}", input);
+fn button_event(input: ControllerInputs, pressed: bool) {
+    println!("button: {:?} {}", input, if pressed { "pressed" } else { "released" });
 }
 
 fn axis_event(axis: Axis) {
